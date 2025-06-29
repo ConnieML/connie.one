@@ -1,92 +1,88 @@
-// storage-adapter-import-placeholder
-import { mongooseAdapter } from '@payloadcms/db-mongodb'
-
-import sharp from 'sharp' // sharp-import
+import { buildConfig } from 'payload/config'
 import path from 'path'
-import { buildConfig, PayloadRequest } from 'payload'
-import { fileURLToPath } from 'url'
-
-import { Categories } from './collections/Categories'
-import { Media } from './collections/Media'
+import { Users } from './collections/Users'
 import { Pages } from './collections/Pages'
 import { Posts } from './collections/Posts'
-import { Users } from './collections/Users'
-import { Footer } from './Footer/config'
-import { Header } from './Header/config'
-import { plugins } from './plugins'
-import { defaultLexical } from '@/fields/defaultLexical'
-import { getServerSideURL } from './utilities/getURL'
-
-const filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(filename)
+import { Media } from './collections/Media'
+import { Categories } from './collections/Categories'
+import { Header } from './globals/Header'
+import { Footer } from './globals/Footer'
+import { vercelPostgresAdapter } from '@payloadcms/db-vercel-postgres'
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { seo } from '@payloadcms/plugin-seo'
+import { search } from '@payloadcms/plugin-search'
+import { redirects } from '@payloadcms/plugin-redirects'
+import { nestedDocs } from '@payloadcms/plugin-nested-docs'
+import { formBuilder } from '@payloadcms/plugin-form-builder'
 
 export default buildConfig({
   admin: {
-    components: {
-      // The `BeforeLogin` component renders a message that you see while logging into your admin panel.
-      // Feel free to delete this at any time. Simply remove the line below and the import `BeforeLogin` statement on line 15.
-      beforeLogin: ['@/components/BeforeLogin'],
-      // The `BeforeDashboard` component renders the 'welcome' block that you see after logging into your admin panel.
-      // Feel free to delete this at any time. Simply remove the line below and the import `BeforeDashboard` statement on line 15.
-      beforeDashboard: ['@/components/BeforeDashboard'],
-    },
-    importMap: {
-      baseDir: path.resolve(dirname),
-    },
     user: Users.slug,
-    livePreview: {
-      breakpoints: [
-        {
-          label: 'Mobile',
-          name: 'mobile',
-          width: 375,
-          height: 667,
-        },
-        {
-          label: 'Tablet',
-          name: 'tablet',
-          width: 768,
-          height: 1024,
-        },
-        {
-          label: 'Desktop',
-          name: 'desktop',
-          width: 1440,
-          height: 900,
-        },
-      ],
-    },
   },
-  // This config helps us configure global or default features that the other editors can inherit
-  editor: defaultLexical,
-  db: mongooseAdapter({
-    url: process.env.DATABASE_URI || '',
-  }),
-  collections: [Pages, Posts, Media, Categories, Users],
-  cors: [getServerSideURL()].filter(Boolean),
+  collections: [Categories, Media, Pages, Posts, Users],
   globals: [Header, Footer],
-  plugins: [
-    ...plugins,
-    // storage-adapter-placeholder
-  ],
-  secret: process.env.PAYLOAD_SECRET,
-  sharp,
+  editor: lexicalEditor({}),
+  secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
-    outputFile: path.resolve(dirname, 'payload-types.ts'),
+    outputFile: path.resolve(process.cwd(), 'src/payload-types.ts'),
   },
-  jobs: {
-    access: {
-      run: ({ req }: { req: PayloadRequest }): boolean => {
-        // Allow logged in users to execute this endpoint (default)
-        if (req.user) return true
-
-        // If there is no logged in user, then check
-        // for the Vercel Cron secret to be present as an
-        // Authorization header:
-        const authHeader = req.headers.get('authorization')
-        return authHeader === `Bearer ${process.env.CRON_SECRET}`
-      },
+  db: vercelPostgresAdapter({
+    pool: {
+      connectionString: process.env.POSTGRES_URL,
     },
-    tasks: [],
+  }),
+
+  /**
+   * This is temporary - we need to patch Payload until they fix this.
+   * @see https://github.com/payloadcms/payload/issues/5545
+   *
+   * Alternatively, you can use the `mongooseAdapter` and transpile your config
+   * to CommonJS.
+   */
+  // @ts-expect-error
+  express: {
+    json: {
+      limit: '100mb',
+    },
   },
+
+  plugins: [
+    // This plugin is used to build forms dynamically
+    // See https://payloadcms.com/docs/plugins/form-builder
+    formBuilder({
+      fields: {
+        payment: false,
+      },
+    }),
+    // This plugin is used to create nested docs within collections
+    // See https://payloadcms.com/docs/plugins/nested-docs
+    nestedDocs({
+      collections: ['categories'],
+    }),
+    // This plugin is used to manage redirects
+    // See https://payloadcms.com/docs/plugins/redirects
+    redirects({
+      collections: ['pages', 'posts'],
+    }),
+    // This plugin is used to search through collections
+    // See https://payloadcms.com/docs/plugins/search
+    search({
+      collections: ['pages', 'posts'],
+    }),
+    // This plugin is used to manage SEO data
+    // See https://payloadcms.com/docs/plugins/seo
+    seo({
+      collections: ['pages', 'posts'],
+      uploadsCollection: 'media',
+    }),
+    // This plugin is used to connect to Vercel Blob Storage
+    // See https://payloadcms.com/docs/plugins/storage-vercel-blob
+    vercelBlobStorage({
+      collections: {
+        [Media.slug]: true,
+      },
+      token: process.env.BLOB_READ_WRITE_TOKEN || '',
+    }),
+  ],
 })
