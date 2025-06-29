@@ -1,0 +1,15 @@
+version: 1
+applications:
+  - appRoot: .
+    # This platform is for deploying containerized web servers
+    platform: WEBSERVER
+    frontend:
+      phases:
+        build:
+          # This command tells Amplify to build an image using your Dockerfile
+          commands:
+            - docker build -t connie-one-prod .
+      artifacts:
+        baseDirectory: /
+        files:
+          - '**/*'
