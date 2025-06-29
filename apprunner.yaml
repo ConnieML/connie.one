@@ -9,5 +9,9 @@ build:
     file: ./Dockerfile
 
 run:
+  # The command to start the application.
+  # We run migrations first, then start the server.
+  # This is a best practice for production deployments.
+  command: pnpm payload migrate && pnpm start
   # The port your application listens on, as defined in your Dockerfile.
   port: 3000
