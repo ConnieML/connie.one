@@ -2,12 +2,6 @@ version: 1
 applications:
   - appRoot: .
     platform: WEBSERVER
-    frontend:
-      phases:
-        build:
-          commands:
-            - docker build -t connie-one-prod .
-      artifacts:
-        baseDirectory: /
-        files:
-          - "**/*"
+    # For the WEBSERVER platform, Amplify automatically detects your Dockerfile
+    # and builds/deploys the container. You don't need to specify any build
+    # commands or artifacts here if your Dockerfile handles everything.
